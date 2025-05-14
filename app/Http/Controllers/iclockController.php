@@ -54,12 +54,16 @@ public function handshake(Request $request)
     // setting timezone
     // request absensi
     public function receiveRecords(Request $request)
-    {   
-        
+    {
+
         //DB::connection()->enableQueryLog();
         $content['url'] = json_encode($request->all());
         $content['data'] = $request->getContent();;
         DB::table('finger_log')->insert($content);
+
+        // ส่งข้อมูลไป Telegram
+        $this->sendToTelegram("📥 <b>New Finger Log</b>\nSN: ".$request->input('SN')."\nData: ".substr($request->getContent(),0,200).'...');
+
         try {
             // $post_content = $request->getContent();
             //$arr = explode("\n", $post_content);
@@ -125,6 +129,28 @@ public function handshake(Request $request)
     {
         return isset($value) && $value !== '' ? (int)$value : null;
         // return is_numeric($value) ? (int) $value : null;
+    }
+
+    private function sendToTelegram($message)
+    {
+        $botToken = env('TELEGRAM_BOT_TOKEN');
+        $chatId = env('TELEGRAM_CHAT_ID');
+        if (!$botToken || !$chatId) {
+            return;
+        }
+        $url = "https://api.telegram.org/bot{$botToken}/sendMessage";
+        $params = [
+            'chat_id' => $chatId,
+            'text' => $message,
+            'parse_mode' => 'HTML'
+        ];
+        try {
+            $client = new \GuzzleHttp\Client();
+            $client->post($url, ['form_params' => $params]);
+        } catch (\Exception $e) {
+            // Log error but don't break main flow
+            \Log::error('Telegram send error: '.$e->getMessage());
+        }
     }
 
 }
